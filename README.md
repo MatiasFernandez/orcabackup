@@ -1,14 +1,41 @@
 # 🐋 orcabackup
 
-Take a dated snapshot of your OrcaSlicer setup, including the base profiles your presets depend on, so that after an update you can still see how everything was configured before.
+Tools to keep your OrcaSlicer setup reproducible across updates. Backups work on macOS and Linux; the version freeze is macOS only.
 
-## Why not just use "Export Preset Bundle"?
+## What's in this repo
+
+| Tool | Use it to |
+|---|---|
+| [`backup.py`](backup.py) | Snapshot your presets and the base profiles they inherit from, and diff your current setup against a snapshot |
+| [`freeze-version.sh`](freeze-version.sh) | Keep the currently installed OrcaSlicer runnable side by side after you upgrade (macOS) |
+
+## Quick start
+
+```sh
+./freeze-version.sh        # optional: keep the current app runnable (macOS)
+./backup.py                # snapshot your setup into ./backups/
+# ...update OrcaSlicer and open it once...
+./backup.py --diff-latest  # see what changed since the snapshot
+```
+
+Close OrcaSlicer before running either tool.
+
+## Requirements
+
+- `backup.py`: Python 3.8+ with no third-party packages. Python 3 ships with macOS (via the Xcode command line tools) and most Linux distributions.
+- `freeze-version.sh`: macOS with OrcaSlicer installed in `/Applications`.
+
+## backup.py
+
+Takes a dated snapshot of your OrcaSlicer setup, including the base profiles your presets depend on, so that after an update you can still see how everything was configured before.
+
+### Why not just use "Export Preset Bundle"?
 
 OrcaSlicer's *File → Export → Export Preset Bundle* only exports your **user** presets. A user preset stores `inherits: "<system preset>"` and only the values you changed on top of it. The system preset it points to is not exported, so after an update the same user preset can resolve to different values.
 
 This script zips your user presets **and** the base profiles from the installed version, so the snapshot is self-contained.
 
-## What goes in the zip
+### What goes in the zip
 
 ```
 orcaslicer-userdata-backup_v2.3.2_2026-09-29_1005.zip
@@ -23,28 +50,16 @@ orcaslicer-userdata-backup_v2.3.2_2026-09-29_1005.zip
 
 Left out on purpose: `cache/`, `log/`, `hms/`, `ota/`, the `user_backup-*` folders, and `.orcaslicer_machine_id` (it identifies your machine).
 
-## Requirements
-
-Python 3.8+ with no third-party packages. Python 3 ships with macOS (via the Xcode command line tools) and most Linux distributions.
-
-## Usage
-
-```sh
-./backup.py                # write to ./backups/ next to the script
-./backup.py --pick         # choose the output folder in a native dialog
-./backup.py --out DIR      # write to a specific folder
-./backup.py --list         # list existing backups
-./backup.py --diff-latest  # compare your current setup with the newest backup
-```
-
-Close OrcaSlicer before running. It rewrites `OrcaSlicer.conf` and presets on exit, so a backup taken while it is open may be inconsistent. The script warns if it detects the app running and carries on.
+The zip is about 25 MB, almost all of it the app's bundled profiles. `--no-app-profiles` brings it down to a few MB.
 
 ### Options
+
+Run `./backup.py` with no arguments to write to `backups/` next to the script.
 
 | Option | Purpose |
 |---|---|
 | `--out DIR` | Output folder (default: `backups/` next to the script) |
-| `--pick` | Choose the output folder in a native dialog |
+| `--pick` | Choose the output folder in a native dialog (`osascript` on macOS; `zenity` or `kdialog` on Linux, falling back to the default folder) |
 | `--data-dir DIR` | OrcaSlicer data dir, if auto-detection fails |
 | `--app-dir DIR` | Installed app or install dir, if auto-detection fails |
 | `--app-version X.Y.Z` | Override the detected version in the file name |
@@ -52,21 +67,23 @@ Close OrcaSlicer before running. It rewrites `OrcaSlicer.conf` and presets on ex
 | `--list` | List existing backups and exit |
 | `--diff-latest` | Show added, removed and changed files against the newest backup |
 
-The zip is about 25 MB, almost all of it the app's bundled profiles. `--no-app-profiles` brings it down to a few MB.
+OrcaSlicer rewrites `OrcaSlicer.conf` and presets on exit, so a backup taken while it is open may be inconsistent. The script warns if it detects the app running and carries on.
 
-### Folder picker
+### Comparing before and after an update
 
-`--pick` uses `osascript` on macOS, which is always available. On Linux it uses `zenity` or `kdialog` if one is installed; otherwise it falls back to the default folder.
+Back up before updating, update OrcaSlicer and open it once, then run `./backup.py --diff-latest`. You can also unzip the backup and diff it against the live folders.
 
-## Comparing before and after an update
+### Where it looks for your data
 
-1. Back up before updating.
-2. Update OrcaSlicer and open it once.
-3. Run `./backup.py --diff-latest` to see which files changed, or unzip the backup and diff it against the live folders.
+| OS | Data dir | App profiles |
+|---|---|---|
+| macOS | `~/Library/Application Support/OrcaSlicer` | `/Applications/OrcaSlicer.app` |
+| Linux | `$XDG_CONFIG_HOME/OrcaSlicer` (default `~/.config/OrcaSlicer`) | `/usr/share/OrcaSlicer`, `/opt/OrcaSlicer`, `/opt/orca-slicer`, `~/OrcaSlicer` |
+| Linux (Flatpak) | `~/.var/app/io.github.softfever.OrcaSlicer/config/OrcaSlicer` | not auto-detected; use `--app-dir` or `--no-app-profiles` |
 
-## Keeping the old version runnable: `freeze-version.sh` (macOS)
+## freeze-version.sh (macOS)
 
-Before installing a new OrcaSlicer, you can freeze the installed one as a separate app with its own data dir. The new version then installs as a normal `OrcaSlicer.app` without replacing the old binary or sharing its settings.
+Before installing a new OrcaSlicer, freeze the installed one as a separate app with its own data dir. The new version then installs as a normal `OrcaSlicer.app` without replacing the old binary or sharing its settings.
 
 ```sh
 ./freeze-version.sh                  # version read from the installed app
@@ -88,17 +105,17 @@ The original app and data dir are never modified. The script refuses to run whil
 
 Don't run two OrcaSlicer versions at the same time. The wrapper is ad-hoc signed and its launcher is a shell script, so macOS may show a one-time warning about the app not being optimized for your Mac.
 
-## Where it looks for your data
-
-| OS | Data dir | App profiles |
-|---|---|---|
-| macOS | `~/Library/Application Support/OrcaSlicer` | `/Applications/OrcaSlicer.app` |
-| Linux | `$XDG_CONFIG_HOME/OrcaSlicer` (default `~/.config/OrcaSlicer`) | `/usr/share/OrcaSlicer`, `/opt/OrcaSlicer`, `/opt/orca-slicer`, `~/OrcaSlicer` |
-| Linux (Flatpak) | `~/.var/app/io.github.softfever.OrcaSlicer/config/OrcaSlicer` | not auto-detected; use `--app-dir` or `--no-app-profiles` |
-
 ## Limitations
 
 - Developed and tested on macOS. The Linux paths and the `zenity`/`kdialog` picker are untested.
 - The app version is read automatically on macOS only. On Linux pass `--app-version`, otherwise the file name contains `vunknown`.
 - Windows is not supported.
-- This is a snapshot for reference and comparison. There is no restore command; unzip the archive and copy files back by hand if you need them.
+- `backup.py` makes a snapshot for reference and comparison. There is no restore command; unzip the archive and copy files back by hand if you need them.
+
+## Contributing
+
+Issues and pull requests are welcome. Linux and Windows are the main gaps: reports of what works or doesn't on those systems, or patches for them, are especially useful. Keep `backup.py` dependency-free (standard library only).
+
+## License
+
+[MIT](LICENSE)
