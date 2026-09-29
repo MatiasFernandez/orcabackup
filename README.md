@@ -64,6 +64,30 @@ The zip is about 25 MB, almost all of it the app's bundled profiles. `--no-app-p
 2. Update OrcaSlicer and open it once.
 3. Run `./backup.py --diff-latest` to see which files changed, or unzip the backup and diff it against the live folders.
 
+## Keeping the old version runnable: `freeze-version.sh` (macOS)
+
+Before installing a new OrcaSlicer, you can freeze the installed one as a separate app with its own data dir. The new version then installs as a normal `OrcaSlicer.app` without replacing the old binary or sharing its settings.
+
+```sh
+./freeze-version.sh                  # version read from the installed app
+./freeze-version.sh --version 2.3.2  # override the detected version
+./freeze-version.sh --force          # replace targets that already exist
+```
+
+For version `X.Y.Z` it creates:
+
+| Path | What it is |
+|---|---|
+| `~/.local/apps/OrcaSlicer-X.Y.Z.app` | Copy of `/Applications/OrcaSlicer.app`. It sits in a hidden folder so Launchpad and Spotlight don't list it twice. |
+| `~/Library/Application Support/OrcaSlicer-X.Y.Z` | Copy of the data dir. |
+| `/Applications/OrcaSlicer X.Y.Z.app` | Minimal wrapper app with the original icon. Its launcher runs the copy with `--datadir` pointing at the copied data dir. |
+
+Launch the frozen version through the wrapper. Opening the copy in `~/.local/apps` directly ignores `--datadir` and uses the default data dir.
+
+The original app and data dir are never modified. The script refuses to run while OrcaSlicer is open, so the data dir copy is consistent. It also refuses to overwrite existing targets unless you pass `--force`.
+
+Don't run two OrcaSlicer versions at the same time. The wrapper is ad-hoc signed and its launcher is a shell script, so macOS may show a one-time warning about the app not being optimized for your Mac.
+
 ## Where it looks for your data
 
 | OS | Data dir | App profiles |
