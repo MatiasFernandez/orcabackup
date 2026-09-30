@@ -8,6 +8,7 @@ Tools to keep your OrcaSlicer setup reproducible across updates. Backups work on
 |---|---|
 | [`backup.py`](backup.py) | Snapshot your presets and the base profiles they inherit from, and diff your current setup against a snapshot |
 | [`freeze-version.sh`](freeze-version.sh) | Keep the currently installed OrcaSlicer runnable side by side after you upgrade (macOS) |
+| [`pin-printer.py`](pin-printer.py) | Re-link printers you saved with "Detach from parent" to their system printer, so they keep every setting and still match system filaments and processes |
 
 ## Quick start
 
@@ -22,7 +23,7 @@ Close OrcaSlicer before running either tool.
 
 ## Requirements
 
-- `backup.py`: Python 3.8+ with no third-party packages. Python 3 ships with macOS (via the Xcode command line tools) and most Linux distributions.
+- `backup.py`, `pin-printer.py`: Python 3.8+ with no third-party packages. Python 3 ships with macOS (via the Xcode command line tools) and most Linux distributions.
 - `freeze-version.sh`: macOS with OrcaSlicer installed in `/Applications`.
 
 ## backup.py
@@ -107,6 +108,34 @@ The original app and data dir are never modified. The script refuses to run whil
 `--remove X.Y.Z` unregisters the wrapper from Launch Services and deletes all three paths, skipping any that are already gone. It lists the paths and their sizes and asks for confirmation before deleting anything. It refuses to run while that version is open. The frozen data dir is deleted too, including any presets you changed while using that version, so back it up first if you want to keep them (`./backup.py --data-dir "$HOME/Library/Application Support/OrcaSlicer-X.Y.Z"`).
 
 Don't run two OrcaSlicer versions at the same time. The wrapper is ad-hoc signed and its launcher is a shell script, so macOS may show a one-time warning about the app not being optimized for your Mac.
+
+## Freezing presets across an update
+
+A user preset only stores what differs from its system parent, so after an update it silently picks up the new parent's values. To keep a copy with the old values, save it detached in the old version before upgrading:
+
+1. Turn on Developer mode, open the preset, click Save, tick **Detach from parent** and give it a new name (e.g. `… (frozen 2.3.2)`). OrcaSlicer writes every setting into the file, including built-in defaults. The option is in the Save dialog from 2.3.2 on, in Developer mode only.
+2. Filaments and processes are done at this point. A detached preset has no parent, so saving it again in the new version keeps everything.
+3. Printers need one more step: quit OrcaSlicer and run `./pin-printer.py` (below).
+
+## pin-printer.py
+
+System filaments and processes list the printers they work with by name, and a user printer matches through its parent. A detached printer has no parent, so most of them disappear for it. `pin-printer.py` puts the parent back while keeping every detached value:
+
+```sh
+./pin-printer.py            # find detached printers, show the matches, ask once
+./pin-printer.py --dry-run  # only show what would change
+./pin-printer.py --yes      # don't ask
+```
+
+| Option | Purpose |
+|---|---|
+| `--data-dir DIR` | OrcaSlicer data dir, if auto-detection fails |
+| `--dry-run` | Show the matches without changing anything |
+| `--yes` | Pin without asking |
+
+It looks at printers in `user/*/machine/` with an empty `inherits` and picks the installed system printer with the same `printer_model` and `printer_variant` (e.g. `Elegoo Centauri Carbon` + `0.4` → `Elegoo Centauri Carbon 0.4 nozzle`). Printers without exactly one match, such as ones built from scratch, are listed and skipped. Only the `inherits` line changes; the original is kept as `<name>.json.bak`, which OrcaSlicer ignores. Pinned printers aren't detached any more, so running it again does nothing. It refuses to run while OrcaSlicer is open.
+
+A pinned printer keeps its values only until you save it in OrcaSlicer: saving diffs it against the current parent and drops the keys that happen to match, and those keys then follow future parent updates. Treat pinned printers as read-only. The pin also needs the parent to exist in the new version; OrcaSlicer skips a user preset whose parent is gone (renames declared by the vendor profile are followed).
 
 ## Limitations
 

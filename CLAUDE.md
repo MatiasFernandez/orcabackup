@@ -5,6 +5,7 @@
 Tools for keeping an OrcaSlicer setup reproducible across app updates. There is no build, no test suite, no linter, and no package manifest. [README.md](README.md) is the user-facing documentation.
 
 - [backup.py](backup.py): Python 3.8+, **standard library only** for now. Supports macOS and Linux.
+- [pin-printer.py](pin-printer.py): Python, standard library only; imports helpers from `backup.py`. Unlike `backup.py` it **writes** to the data dir (the `inherits` line of detached user printers), so test it with `--data-dir <fixture>` or `--dry-run`.
 - [freeze-version.sh](freeze-version.sh): bash, macOS only. Uses `ditto`, `PlistBuddy`, `codesign`, `lsregister`.
 
 ## Running / verifying changes
