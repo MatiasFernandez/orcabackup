@@ -5,7 +5,7 @@
 Tools for keeping an OrcaSlicer setup reproducible across app updates. There is no build, no test suite, no linter, and no package manifest. [README.md](README.md) is the user-facing documentation.
 
 - [backup.py](backup.py): Python 3.8+, **standard library only** for now. Supports macOS and Linux.
-- [pin-printer.py](pin-printer.py): Python, standard library only; imports helpers from `backup.py`. Unlike `backup.py` it **writes** to the data dir (the `inherits` line of detached user printers), so test it with `--data-dir <fixture>` or `--dry-run`.
+- [pin-printer.py](pin-printer.py): Python, standard library only; imports helpers from `backup.py`. Unlike `backup.py` it **writes** to the data dir (the `inherits` line of detached user printers, then moves them from `machine/base/` to `machine/`), so test it with `--data-dir <fixture>` or `--dry-run`.
 - [freeze-version.sh](freeze-version.sh): bash, macOS only. Uses `ditto`, `PlistBuddy`, `codesign`, `lsregister`.
 
 ## Running / verifying changes
@@ -21,6 +21,10 @@ bash -n freeze-version.sh
 ```
 
 `freeze-version.sh` writes into `/Applications`, `~/.local/apps` and `~/Library/Application Support`, and `--force` deletes existing targets with `rm -rf`. Don't run it to "test" a change without asking the user.
+
+## OrcaSlicer data dir layout
+
+User presets live in `user/<id>/{machine,filament,process}/`. A preset with no parent (`"inherits": ""`, e.g. saved with "Detach from parent") goes in the `base/` subfolder of its type instead; OrcaSlicer loads `base/` first. See `PresetCollection::path_from_name` / `is_base_preset` in the OrcaSlicer source.
 
 ## Docs
 

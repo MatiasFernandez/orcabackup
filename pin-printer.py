@@ -12,8 +12,10 @@ Usage:
   ./pin-printer.py --yes      # don't ask
 
 The parent is the installed system printer with the same printer_model and
-printer_variant. Detached printers without exactly one match are skipped. Each changed
-file is copied to <name>.json.bak first (OrcaSlicer only loads *.json).
+printer_variant. Detached printers without exactly one match are skipped. OrcaSlicer
+keeps presets without a parent in machine/base/, so a pinned printer is moved (with its
+.info) to machine/, where it keeps presets that have one. The original is kept as
+<name>.json.bak where it was (OrcaSlicer only loads *.json).
 """
 import argparse
 import json
@@ -47,11 +49,19 @@ def system_printers(data_dir):
 
 
 def detached_printers(data_dir):
-    """Yield (path, config) for user printers saved without a parent."""
-    for path in sorted((data_dir / "user").glob("*/machine/*.json")):
+    """Yield (path, config) for user printers saved without a parent.
+
+    OrcaSlicer saves those in machine/base/; machine/ itself is checked too."""
+    user = data_dir / "user"
+    for path in sorted([*user.glob("*/machine/*.json"), *user.glob("*/machine/base/*.json")]):
         d = load_json(path)
         if d is not None and d.get("inherits") == "":
             yield path, d
+
+
+def pinned_path(path):
+    """Where OrcaSlicer keeps a printer that has a parent: machine/, not machine/base/."""
+    return path.parent.parent / path.name if path.parent.name == "base" else path
 
 
 def pin(path, parent):
@@ -62,7 +72,13 @@ def pin(path, parent):
     bak = path.with_name(path.name + ".bak")
     if not bak.exists():
         bak.write_text(text, encoding="utf-8")
-    path.write_text(new_text, encoding="utf-8")
+    dest = pinned_path(path)
+    dest.write_text(new_text, encoding="utf-8")
+    if dest != path:
+        info = path.with_suffix(".info")
+        if info.exists():
+            info.rename(dest.with_suffix(".info"))
+        path.unlink()
 
 
 def main():
@@ -83,7 +99,10 @@ def main():
     for path, d in detached_printers(data_dir):
         key = (d.get("printer_model"), d.get("printer_variant"))
         matches = parents.get(key, [])
-        if len(matches) == 1:
+        dest = pinned_path(path)
+        if dest != path and (dest.exists() or dest.with_suffix(".info").exists()):
+            skipped.append((d.get("name", path.stem), f"{dest} already exists"))
+        elif len(matches) == 1:
             todo.append((path, d.get("name", path.stem), matches[0]))
         else:
             reason = "no system printer" if not matches else f"{len(matches)} system printers"
