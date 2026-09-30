@@ -89,6 +89,7 @@ Before installing a new OrcaSlicer, freeze the installed one as a separate app w
 ./freeze-version.sh                  # version read from the installed app
 ./freeze-version.sh --version 2.3.2  # override the detected version
 ./freeze-version.sh --force          # replace targets that already exist
+./freeze-version.sh --remove 2.3.2   # delete a frozen version
 ```
 
 For version `X.Y.Z` it creates:
@@ -102,6 +103,8 @@ For version `X.Y.Z` it creates:
 Launch the frozen version through the wrapper. Opening the copy in `~/.local/apps` directly ignores `--datadir` and uses the default data dir.
 
 The original app and data dir are never modified. The script refuses to run while OrcaSlicer is open, so the data dir copy is consistent. It also refuses to overwrite existing targets unless you pass `--force`.
+
+`--remove X.Y.Z` unregisters the wrapper from Launch Services and deletes all three paths, skipping any that are already gone. It lists the paths and their sizes and asks for confirmation before deleting anything. It refuses to run while that version is open. The frozen data dir is deleted too, including any presets you changed while using that version, so back it up first if you want to keep them (`./backup.py --data-dir "$HOME/Library/Application Support/OrcaSlicer-X.Y.Z"`).
 
 Don't run two OrcaSlicer versions at the same time. The wrapper is ad-hoc signed and its launcher is a shell script, so macOS may show a one-time warning about the app not being optimized for your Mac.
 
