@@ -10,16 +10,27 @@ Tools to keep your OrcaSlicer setup reproducible across updates. Backups work on
 | [`freeze-version.sh`](freeze-version.sh) | Keep the currently installed OrcaSlicer runnable side by side after you upgrade (macOS) |
 | [`pin-printer.py`](pin-printer.py) | Re-link printers you saved with "Detach from parent" to their system printer, so they keep every setting and still match system filaments and processes |
 
-## Quick start
+## Upgrade workflow
 
-```sh
-./freeze-version.sh        # optional: keep the current app runnable (macOS)
-./backup.py                # snapshot your setup into ./backups/
-# ...update OrcaSlicer and open it once...
-./backup.py --diff-latest  # see what changed since the snapshot
-```
+The recommended order when moving to a new OrcaSlicer version. Quit OrcaSlicer before running any of the scripts.
 
-Close OrcaSlicer before running either tool.
+| # | Where | Step | |
+|---|---|---|---|
+| 1 | Terminal | `./freeze-version.sh` — keep the current app runnable (macOS) | optional |
+| 2 | OrcaSlicer (old) | Save detached copies of the presets you want to keep | optional |
+| 3 | OrcaSlicer (old) | *Export Preset Bundle* for a GUI-importable backup, then quit | optional |
+| 4 | Terminal | `./pin-printer.py` — re-link detached printers to their parent | |
+| 5 | Terminal | `./backup.py` — snapshot your setup | |
+| 6 | — | Install the new version and open it once | |
+| 7 | Terminal + OrcaSlicer (new) | `./backup.py --diff-latest`, then *Compare presets* | |
+
+1. **Keep the old version** (macOS, optional). [`freeze-version.sh`](#freeze-versionsh-macos) copies the app and its data dir, so the old version stays runnable with your setup as it is now.
+2. **Freeze the presets you want to keep** (optional). A user preset only stores what differs from its system parent, so after the update it picks up the new parent's values. To keep a copy with today's values, open the preset in the current version with Developer mode on, click Save, tick **Detach from parent** and save it under a new name (e.g. `… (frozen 2.3.2)`). OrcaSlicer writes every setting into the file, including built-in defaults. The checkbox is in the Save dialog from 2.3.2 on, in Developer mode only. Do this in the regular app, not in the frozen copy, so the new version sees the frozen presets.
+3. **Export a bundle you can import from the GUI** (optional). In the same session, *File → Export → Export Preset Bundle → Printer config bundle (.orca_printer)* saves a user printer together with every user filament and process compatible with it, frozen copies included. Restore it with *File → Import → Import Configs*. Presets that still inherit from a system preset only hold your changes, so after an update they resolve against the new parents; the frozen copies keep the old values. Export before pinning: importing re-saves a preset that has a parent as a diff against it, which would undo the pin, while a detached printer is imported whole. After importing the bundle, run `./pin-printer.py` again. Quit OrcaSlicer when done.
+4. **Pin frozen printers.** Detached filaments and processes are done after step 2. Detached printers need their parent back, or most system filaments and processes stop showing up for them. Run [`pin-printer.py`](#pin-printerpy); it does nothing if there's no detached printer.
+5. **Snapshot** with [`backup.py`](#backuppy). It holds your originals, the frozen copies, the pinned printers and the base profiles of the installed version, so it's the most complete record of the old setup. One run, as the last step before upgrading, is enough.
+6. **Install the new version** and let it reuse the data dir. Your user preset files are left as they are; the system profiles are replaced. On first launch OrcaSlicer also copies `user/` to `user_backup-v<new version>` in the data dir.
+7. **Check what changed** with `./backup.py --diff-latest`, and compare a live preset with its frozen copy in OrcaSlicer's *Compare presets* dialog (the compare button in the settings panel).
 
 ## Requirements
 
@@ -109,17 +120,9 @@ The original app and data dir are never modified. The script refuses to run whil
 
 Don't run two OrcaSlicer versions at the same time. The wrapper is ad-hoc signed and its launcher is a shell script, so macOS may show a one-time warning about the app not being optimized for your Mac.
 
-## Freezing presets across an update
-
-A user preset only stores what differs from its system parent, so after an update it silently picks up the new parent's values. To keep a copy with the old values, save it detached in the old version before upgrading:
-
-1. Turn on Developer mode, open the preset, click Save, tick **Detach from parent** and give it a new name (e.g. `… (frozen 2.3.2)`). OrcaSlicer writes every setting into the file, including built-in defaults. The option is in the Save dialog from 2.3.2 on, in Developer mode only.
-2. Filaments and processes are done at this point. A detached preset has no parent, so saving it again in the new version keeps everything.
-3. Printers need one more step: quit OrcaSlicer and run `./pin-printer.py` (below).
-
 ## pin-printer.py
 
-System filaments and processes list the printers they work with by name, and a user printer matches through its parent. A detached printer has no parent, so most of them disappear for it. `pin-printer.py` puts the parent back while keeping every detached value:
+System filaments and processes list the printers they work with by name, and a user printer matches through its parent. A printer saved with *Detach from parent* (step 2 of the [upgrade workflow](#upgrade-workflow)) has no parent, so most of them disappear for it. `pin-printer.py` puts the parent back while keeping every detached value:
 
 ```sh
 ./pin-printer.py            # find detached printers, show the matches, ask once
@@ -135,7 +138,7 @@ System filaments and processes list the printers they work with by name, and a u
 
 It looks at printers in `user/*/machine/` with an empty `inherits` and picks the installed system printer with the same `printer_model` and `printer_variant` (e.g. `Elegoo Centauri Carbon` + `0.4` → `Elegoo Centauri Carbon 0.4 nozzle`). Printers without exactly one match, such as ones built from scratch, are listed and skipped. Only the `inherits` line changes; the original is kept as `<name>.json.bak`, which OrcaSlicer ignores. Pinned printers aren't detached any more, so running it again does nothing. It refuses to run while OrcaSlicer is open.
 
-A pinned printer keeps its values only until you save it in OrcaSlicer: saving diffs it against the current parent and drops the keys that happen to match, and those keys then follow future parent updates. Treat pinned printers as read-only. The pin also needs the parent to exist in the new version; OrcaSlicer skips a user preset whose parent is gone (renames declared by the vendor profile are followed).
+Detached filaments and processes need no pinning. With no parent, OrcaSlicer saves every setting each time, so you can keep editing them in the new version. A pinned printer keeps its values only until you save it in OrcaSlicer: saving diffs it against the current parent and drops the keys that happen to match, and those keys then follow future parent updates. Treat pinned printers as read-only. Importing one from a preset bundle has the same effect, so export printers before pinning them and run the script again after importing. The pin also needs the parent to exist in the new version; OrcaSlicer skips a user preset whose parent is gone (renames declared by the vendor profile are followed).
 
 ## Limitations
 
